@@ -1,8 +1,12 @@
+from database.database import create_database
 import streamlit as st
 
 from components.header import show_header
 from components.sidebar import show_sidebar
 from components.cards import dashboard_cards
+
+create_database()
+
 
 # ------------------------------------------------
 # PAGE CONFIGURATION
