@@ -1,65 +1,58 @@
 import os
-import st_caching if False else None
 import streamlit as st
-import numpy as np
 from PIL import Image
+from ultralytics import YOLO
 
-MODEL_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'models')
+# Real trained model location
+MODEL_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'training', 'model')
 WEIGHTS_PT = os.path.join(MODEL_DIR, 'best.pt')
-WEIGHTS_H5 = os.path.join(MODEL_DIR, 'waste_classifier.h5')
+
 
 @st.cache_resource
 def load_trained_model():
-    """
-    Loads trained model weights once and caches them in memory.
-    Supports YOLO (.pt) or Keras/MobileNetV2 (.h5).
-    """
-    if os.path.exists(WEIGHTS_PT):
-        try:
-            from ultralytics import YOLO
-            return YOLO(WEIGHTS_PT), 'yolo'
-        except Exception as e:
-            st.error(f"Failed to load YOLO model: {e}")
-            return None, None
-    elif os.path.exists(WEIGHTS_H5):
-        try:
-            import tensorflow as tf
-            return tf.keras.models.load_model(WEIGHTS_H5), 'keras'
-        except Exception as e:
-            st.error(f"Failed to load Keras model: {e}")
-            return None, None
-    return None, 'missing'
+    """Loads the trained YOLO model once and caches it in memory."""
+    if not os.path.exists(WEIGHTS_PT):
+        st.error(f"Trained model not found at: {WEIGHTS_PT}")
+        return None, "missing"
+
+    try:
+        return YOLO(WEIGHTS_PT), "yolo"
+    except Exception as e:
+        st.error(f"Failed to load YOLO model: {e}")
+        return None, "error"
+
 
 def classify_waste(image_input):
     """
-    Unified prediction interface.
-    Returns: waste_type (str), confidence (float)
+    Runs the real trained model and returns the single
+    highest-confidence detection as (label, confidence).
     """
     model, model_type = load_trained_model()
 
-    if model_type == 'missing' or model is None:
-        # Graceful fallback notification while model training is in progress
-        st.info("⚠️ Trained model file (models/best.pt or models/waste_classifier.h5) not found. Displaying fallback prediction.")
-        return "plastic", 0.85
+    if model_type != "yolo" or model is None:
+        return ("Unknown", 0.0)
 
-    if model_type == 'yolo':
-        results = model(image_input)
-        for r in results:
-            if len(r.boxes) > 0:
-                top_box = r.boxes[0]
-                cls_id = int(top_box.cls[0])
-                conf = float(top_box.conf[0])
-                label = model.names[cls_id]
-                return label, conf
-        return "organic", 0.50
+    if hasattr(image_input, "seek"):
+        image_input.seek(0)
+    image = Image.open(image_input).convert("RGB")
 
-    elif model_type == 'keras':
-        classes = ['cardboard', 'glass', 'metal', 'organic', 'paper', 'plastic']
-        img = Image.fromarray(image_input) if isinstance(image_input, np.ndarray) else image_input
-        img = img.resize((224, 224))
-        img_array = np.expand_dims(np.array(img) / 255.0, axis=0)
-        preds = model.predict(img_array)
-        top_idx = int(np.argmax(preds[0]))
-        return classes[top_idx], float(preds[0][top_idx])
+    results = model.predict(
+        source=image,
+        imgsz=416,
+        conf=0.25,
+        verbose=False
+    )
 
-    return "unknown", 0.00
+    best = None
+    for r in results:
+        for box in r.boxes:
+            conf = float(box.conf[0])
+            cls_id = int(box.cls[0])
+            label = str(model.names[cls_id])
+            if best is None or conf > best[1]:
+                best = (label, conf)
+
+    if best is None:
+        return ("Unknown", 0.0)
+
+    return best

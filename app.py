@@ -13,9 +13,9 @@ from components.cards import dashboard_cards
 
 # Real model integration check with graceful fallback
 try:
-    from detection.detector import classify_waste
+    from detection.Arjun.detect import classify_waste
 except ImportError:
-    from utils.mock_classifier import classify_waste
+    from utils.mock_classifier import classify_waste 
 
 create_database()
 
@@ -118,7 +118,7 @@ st.markdown("""
     /* Hide Default Header Elements */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    header {visibility: hidden;}
+    header {visibility: visible;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -300,3 +300,22 @@ elif page == "Statistics":
         df["date"] = df["detected_at"].astype(str).str[:10]
         daily_counts = df.groupby("date").size()
         st.line_chart(daily_counts)
+elif page == "About":
+
+    st.header("About This Project")
+
+    st.markdown("""
+    **Smart Waste Detection and Classification System**
+
+    A computer vision project that detects and classifies waste into six categories —
+    Biodegradable, Cardboard, Glass, Metal, Paper, and Plastic — using a YOLO object
+    detection model trained on a Kaggle/Roboflow garbage classification dataset.
+
+    **Team:**
+    - Shine Mathew — Dataset & preprocessing
+    - Nikhil Bose — Model training
+    - Arjun Anish — Detection module
+    - Abhidev Dileep — Streamlit frontend, SQLite database, model integration, documentation
+
+    **Tech stack:** Python, Ultralytics YOLO, OpenCV, Streamlit, SQLite
+    """)
